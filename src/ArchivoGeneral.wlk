@@ -1,4 +1,6 @@
 import wollok.game.*
+import configuracion.*
+import direcciones.*
 
 object faltaAgregar
 {
@@ -7,7 +9,7 @@ object faltaAgregar
 
 class GenericObject
 {
-	const tipo
+	const property tipo
 	const tiposQueChocaContra 
 	const property image
 	var property position
@@ -20,7 +22,7 @@ class GenericObject
 
 	method aplicarEfectoSobre(objeto)
 
-	method morir() { game.removeVisual(self)}
+	method morir() { game.schedule(100,{game.removeVisual(self)})}
 	
 	method puedeChocarContra(objeto) = tiposQueChocaContra.contains(objeto.tipo()) 
 }
@@ -33,24 +35,31 @@ method seMueve() = true
 
 method desplazar() 
 {
-position = position.movimientoVertical(velocidad)
+position = arriba.movimientoVertical(self.position(),velocidad)
 }
 
 }
 
 class TextObject 
 {
+	const property tipo = "Texto"
     method puedeChocarContra(objeto) = false
     method seMueve() = false
 
 }
 
-object avion inherits GenericObject(tipo = "Avion", tiposQueChocaContra = ["Asteroide","Provision"], position = game.at(0,game.center()), image = "avion.png")
+object avion inherits GenericObject(tipo = "Avion", tiposQueChocaContra = ["Asteroide","Provision"], position = game.at(game.center().x(),0), image = "avion.png")
 {
-	const rifle = faltaAgregar
-	var carcaza = faltaAgregar
+	const arma = rifle
+	var armadura = carcaza
+	
+	
+	method seMueve() = false // No se mueve automaticamente
 
-  method reducirVida(cuanto) {carcaza.reducirVida(cuanto)}
+   method reducirVida(cuanto) {
+   	
+   	carcaza.reducirVida(cuanto)
+   }
 
    method moverHacia(direccion)
 	{
@@ -64,10 +73,11 @@ object avion inherits GenericObject(tipo = "Avion", tiposQueChocaContra = ["Aste
 	}
 
 
-   method dispara() {rifle.disparar()}
+   method dispara() {arma.disparar()}
 
-   method cambiarMunicion() {rifle.cambiarSelector()}
+   method cambiarMunicion() {arma.cambiarSelector()}
 	
+	method agregarMunicion(cartucho){}
 }
 
 object carcaza
@@ -76,13 +86,13 @@ object carcaza
 	method reducirVida(cuanto)
     { 
 		vida  -= cuanto
-        if(vida <= 0) configuracion.GameOver()
+        if(vida <= 0) configuracion.gameOver()
     }
 }
 
-object Rifle
+object rifle
 {
-const cartuchos = []
+const cartuchos = [cartuchoDefault,cartuchoGrande]
 var selectorCartucho = 0
 
 
@@ -97,10 +107,13 @@ self.lanzarProjectil(cartuchoQueSeDispara.bala())
 }
 }
 
+//object contadorDeMunicion inherits TextObject{}
+
 method lanzarProjectil(bala)
 {
-const balaADisparar = new Bala(velocidad = bala.velocidad(), image = bala.imagen(), position = avion.position(), danio = bala.danio())
+const balaADisparar = bala.crearTemplateBala()
 game.addVisual(balaADisparar)
+configuracion.configurarColision(balaADisparar)
 }
 
 
@@ -134,22 +147,24 @@ method sinVida() = vida <= 0
 override method aplicarEfectoSobre(objetoQueChoca)
 {
 	objetoQueChoca.reducirVida(danio)
-     if (self.sinVida()) self.morir()
 }
 
-method reducirVida(danio)
+method reducirVida(_danio)
 {
-vida -= danio
+vida -= _danio
 if (self.sinVida()) self.morir()
 }
 
-
-
-
-class BalaQueSeDispara
-{
-
 }
+
+object cartuchoDefault inherits Cartucho (bala = balaDefault,cantidadDeBalas = 30){}
+
+object cartuchoGrande inherits Cartucho (bala = balaGrande,cantidadDeBalas = 10) {}
+
+object balaDefault inherits TemplateBala(danio = 1, imagen = "misil_chico.png", velocidad = 1){}
+object balaGrande inherits  TemplateBala(danio = 1, imagen = "misil_grande.png", velocidad = 0.3){}
+
+
 
 
 class Bala inherits MovingObject(tipo  = "Bala", tiposQueChocaContra = ["Asteroide", "Provision"])
@@ -182,4 +197,42 @@ override method aplicarEfectoSobre(Avion)
 avion.agregarMunicion(cartucho)
 }
 
+}
+
+object lanzadorDeAsteroide
+{
+	const listaDeTemplates = [new TemplateAsteroide(danio =1, imagen = "asteroideChiquitin.png", velocidad = -0.3, puntaje = 100,vida = 1),new TemplateAsteroide(danio =1, imagen = "asteroideMediano.png", velocidad = -0.2, puntaje = 200,vida = 2),new TemplateAsteroide(danio =1, imagen = "asteroideGrande.png", velocidad = -0.1, puntaje = 300,vida = 3)]
+	
+	method lanzar()
+	{
+		const asteroideElegido = listaDeTemplates.anyOne().crearTemplateAsteroide()
+		game.addVisual(asteroideElegido)
+		configuracion.configurarColision(asteroideElegido)
+	}
+}
+
+object lanzarDeProvisiones
+{
+	
+}
+
+class TemplateAsteroide
+{
+	const property danio
+	const property imagen
+	const property velocidad
+	const property puntaje
+	const vida 
+	
+	method crearTemplateAsteroide() = new Asteroide(danio = danio, vida = vida, puntaje = puntaje, velocidad = velocidad, image = imagen, position = game.at(0.randomUpTo(game.width()),game.height()))
+
+}
+
+class TemplateBala 
+{
+	const property danio
+	const property imagen
+	const property velocidad
+	method crearTemplateBala() = new Bala(velocidad = self.velocidad(), image = self.imagen(), position = avion.position(), danio = self.danio())
+	
 }
